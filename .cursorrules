@@ -1,0 +1,74 @@
+# Trustroots KPI Dashboard - Cursor Rules
+
+## Project Context
+This is a metrics visualization system for Trustroots and Nostroots platforms. It consists of a Go-based data collection service and a static web dashboard.
+
+## Architecture
+- **Backend**: Go service that collects data from MongoDB and Nostr relays
+- **Frontend**: Static HTML dashboard with Chart.js for visualization
+- **Data Flow**: MongoDB → Go Service → JSON file → Static Dashboard
+- **Deployment**: Docker Compose with MongoDB, KPI service, and Nginx
+
+## Code Style
+- Use Go 1.21+ features and best practices
+- Follow standard Go naming conventions
+- Keep functions focused and testable
+- Use meaningful variable and function names
+- Add comments for complex logic
+
+## Project Structure
+```
+kpi.trustroots.org/
+├── main.go                  # Application entry point
+├── collectors/              # Data collection modules
+├── models/                  # Data structures
+├── public/                  # Static dashboard frontend
+├── docker-compose.yml       # Docker Compose configuration
+├── kpi.trustroots.org.nginx.conf # Nginx configuration
+├── config.example           # Configuration template
+└── README.md                # Project documentation
+```
+
+## Configuration
+- Configuration file is the primary method, with environment variables as fallback
+- Use `config.example` as a template
+- Default values should be sensible for development
+- MongoDB connection should be read-only
+
+## Docker
+- Use multi-stage builds for Go applications
+- Keep images minimal (Alpine Linux)
+- Use Docker Compose for KPI service and MongoDB only
+- Nginx configuration is separate for production deployment
+- No Makefile needed - keep it simple with docker-compose commands
+
+## Database
+- MongoDB queries should be read-only
+- Use aggregation pipelines for complex queries
+- Handle connection timeouts gracefully
+- Prefer secondary replicas for read operations
+
+## Frontend
+- Use vanilla JavaScript (no frameworks)
+- Chart.js for data visualization
+- Responsive design for mobile and desktop
+- Auto-refresh data every 5 minutes
+- Handle loading and error states
+
+## Related Projects
+- Main Trustroots project: https://github.com/Trustroots/trustroots/
+- This is a standalone metrics dashboard for the Trustroots ecosystem
+
+## Development Guidelines
+- Keep the project simple and focused
+- Avoid over-engineering
+- Use standard tools and practices
+- Document configuration clearly
+- Test with real data when possible
+
+## Deployment
+- Docker Compose is the preferred deployment method
+- Use environment variables for configuration
+- Nginx for static file serving with proper caching
+- MongoDB with persistent volumes
+- No complex orchestration needed

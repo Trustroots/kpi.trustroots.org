@@ -1,0 +1,52 @@
+# Generated data files
+public/kpi.json
+
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# Go build artifacts
+kpi-service/kpi-service
+kpi-service/*.exe
+kpi-service/*.exe~
+kpi-service/*.dll
+kpi-service/*.so
+kpi-service/*.dylib
+
+# Go test files
+kpi-service/*.test
+kpi-service/*.out
+
+# Go coverage files
+kpi-service/coverage.txt
+kpi-service/coverage.html
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Docker volumes
+mongodb_data/
+
+# Logs
+*.log
+logs/
+
+# Temporary files
+tmp/
+temp/
+kpi-service
+config.local

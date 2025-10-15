@@ -1,0 +1,15 @@
+# Trustroots KPI Service Configuration
+# Copy this file to config and modify as needed for your environment
+
+# MongoDB Configuration
+MONGO_URI=mongodb://localhost:27017
+MONGO_DB=trustroots
+
+# Nostr Configuration
+NOSTR_RELAYS=wss://relay.trustroots.org,wss://relay.nomadwiki.org
+
+# Output Configuration
+OUTPUT_PATH=public/kpi.json
+
+# Update Configuration
+UPDATE_INTERVAL_MINUTES=60
