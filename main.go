@@ -123,7 +123,7 @@ type Config struct {
 func loadConfig() *Config {
 	// Try to load from config file first
 	config := loadConfigFromFile("config")
-	
+
 	// If config file doesn't exist or is empty, fall back to environment variables
 	if config == nil {
 		config = &Config{
@@ -174,24 +174,24 @@ func loadConfigFromFile(filename string) *Config {
 
 	config := &Config{}
 	scanner := bufio.NewScanner(file)
-	
+
 	for scanner.Scan() {
 		line := strings.TrimSpace(scanner.Text())
-		
+
 		// Skip empty lines and comments
 		if line == "" || strings.HasPrefix(line, "#") {
 			continue
 		}
-		
+
 		// Parse key=value pairs
 		parts := strings.SplitN(line, "=", 2)
 		if len(parts) != 2 {
 			continue
 		}
-		
+
 		key := strings.TrimSpace(parts[0])
 		value := strings.TrimSpace(parts[1])
-		
+
 		switch key {
 		case "MONGO_URI":
 			config.MongoURI = value
@@ -207,12 +207,12 @@ func loadConfigFromFile(filename string) *Config {
 			}
 		}
 	}
-	
+
 	if err := scanner.Err(); err != nil {
 		log.Printf("Error reading config file: %v", err)
 		return nil
 	}
-	
+
 	return config
 }
 
@@ -223,14 +223,14 @@ func resolveOutputPath(path string) string {
 	if filepath.IsAbs(path) {
 		return path
 	}
-	
+
 	// Get current working directory
 	cwd, err := os.Getwd()
 	if err != nil {
 		// If we can't get the working directory, return the path as-is
 		return path
 	}
-	
+
 	// Resolve the path relative to the current working directory
 	return filepath.Join(cwd, path)
 }

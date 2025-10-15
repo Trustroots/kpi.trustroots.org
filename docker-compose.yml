@@ -1,20 +1,4 @@
 services:
-  # MongoDB database
-  mongodb:
-    image: mongo:7.0
-    container_name: trustroots-mongodb
-    restart: unless-stopped
-    ports:
-      - "27017:27017"
-    environment:
-      MONGO_INITDB_ROOT_USERNAME: admin
-      MONGO_INITDB_ROOT_PASSWORD: password
-      MONGO_INITDB_DATABASE: trustroots
-    volumes:
-      - mongodb_data:/data/db
-    networks:
-      - kpi-network
-
   # KPI Service
   kpi-service:
     build:
@@ -22,22 +6,9 @@ services:
       dockerfile: Dockerfile
     container_name: trustroots-kpi-service
     restart: unless-stopped
-    depends_on:
-      - mongodb
     environment:
-      MONGO_URI: mongodb://admin:password@mongodb:27017/trustroots?authSource=admin
-      MONGO_DB: trustroots
       NOSTR_RELAYS: wss://relay.trustroots.org,wss://relay.nomadwiki.org
       OUTPUT_PATH: public/kpi.json
       UPDATE_INTERVAL_MINUTES: 60
     volumes:
       - ./public:/app/public
-    networks:
-      - kpi-network
-
-volumes:
-  mongodb_data:
-
-networks:
-  kpi-network:
-    driver: bridge

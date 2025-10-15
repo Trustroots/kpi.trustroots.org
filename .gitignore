@@ -50,3 +50,4 @@ tmp/
 temp/
 kpi-service
 config.local
+config
