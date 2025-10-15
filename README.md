@@ -81,10 +81,10 @@ Database  Collection   Output     Visualization
 2. **Configure the service:**
    ```bash
    # Copy the example configuration
-   cp config.example config
+   cp .env.example .env
    
    # Edit the configuration file
-   nano config
+   nano .env
    
    # Or set environment variables directly
    export MONGO_URI="mongodb://localhost:27017"
@@ -230,7 +230,7 @@ For production without Docker, see the detailed setup in [kpi-service/README.md]
 | `OUTPUT_PATH` | `public/kpi.json` | Path for JSON output file |
 | `UPDATE_INTERVAL_MINUTES` | `60` | Update frequency in minutes |
 
-**Configuration File**: Copy `config.example` to `config` and modify as needed.
+**Configuration File**: Copy `.env.example` to `.env` and modify as needed.
 
 ## Data Flow
 

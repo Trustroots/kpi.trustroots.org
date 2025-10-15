@@ -6,9 +6,9 @@ services:
       dockerfile: Dockerfile
     container_name: trustroots-kpi-service
     restart: unless-stopped
-    environment:
-      NOSTR_RELAYS: wss://relay.trustroots.org,wss://relay.nomadwiki.org
-      OUTPUT_PATH: public/kpi.json
-      UPDATE_INTERVAL_MINUTES: 60
+    env_file:
+      - .env
     volumes:
       - ./public:/app/public
+    networks:
+      - default

@@ -33,7 +33,6 @@ COPY --from=builder /app/kpi-service .
 RUN mkdir -p /output
 
 # Set default environment variables
-ENV MONGO_URI=mongodb://localhost:27017
 ENV MONGO_DB=trustroots
 ENV NOSTR_RELAYS=wss://relay.trustroots.org,wss://relay.nomadwiki.org
 ENV OUTPUT_PATH=/output/kpi.json

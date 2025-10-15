@@ -119,12 +119,12 @@ type Config struct {
 	UpdateInterval time.Duration
 }
 
-// loadConfig loads configuration from config file or environment variables
+// loadConfig loads configuration from .env file or environment variables
 func loadConfig() *Config {
-	// Try to load from config file first
-	config := loadConfigFromFile("config")
+	// Try to load from .env file first
+	config := loadConfigFromFile(".env")
 
-	// If config file doesn't exist or is empty, fall back to environment variables
+	// If .env file doesn't exist or is empty, fall back to environment variables
 	if config == nil {
 		config = &Config{
 			MongoURI:       getEnv("MONGO_URI", "mongodb://localhost:27017"),
@@ -164,7 +164,7 @@ func getEnvInt(key string, defaultValue int) int {
 	return defaultValue
 }
 
-// loadConfigFromFile loads configuration from a file
+// loadConfigFromFile loads configuration from a .env file
 func loadConfigFromFile(filename string) *Config {
 	file, err := os.Open(filename)
 	if err != nil {
