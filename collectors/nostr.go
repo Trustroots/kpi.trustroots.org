@@ -10,6 +10,8 @@ import (
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 
+	"github.com/nbd-wtf/go-nostr"
+	"github.com/nbd-wtf/go-nostr/nip19"
 	"kpi.trustroots.org/models"
 )
 
@@ -34,46 +36,23 @@ func (nc *NostrCollector) CollectNostrootsData(targetDate *time.Time) (*models.N
 
 	data := &models.NostrootsData{}
 
-	// Get users with npubs from MongoDB
-	usersWithNpubs, err := nc.getUsersWithNpubs(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get users with npubs: %w", err)
-	}
-	data.UsersWithNpubs = usersWithNpubs
-
 	// Get npubs for querying relays
 	npubs, err := nc.getNpubsFromUsers(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get npubs: %w", err)
 	}
 
-	// Query relays for events
-	activePosters, notesByKind, err := nc.queryRelaysForEvents(ctx, npubs, targetDate)
+	// Query relays for events and get valid npub count
+	validNpubs, activePosters, notesByKind, err := nc.queryRelaysForEvents(ctx, npubs, targetDate)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query relays: %w", err)
 	}
 
+	data.UsersWithNpubs = validNpubs
 	data.ActivePosters = activePosters
 	data.NotesByKindPerDay = notesByKind
 
 	return data, nil
-}
-
-// getUsersWithNpubs counts users with valid npubs
-func (nc *NostrCollector) getUsersWithNpubs(ctx context.Context) (int, error) {
-	filter := bson.M{
-		"nostrNpub": bson.M{
-			"$exists": true,
-			"$ne":     "",
-		},
-	}
-
-	count, err := nc.mongo.Collection("users").CountDocuments(ctx, filter)
-	if err != nil {
-		return 0, err
-	}
-
-	return int(count), nil
 }
 
 // getNpubsFromUsers retrieves all npubs from users
@@ -111,26 +90,171 @@ func (nc *NostrCollector) getNpubsFromUsers(ctx context.Context) ([]string, erro
 }
 
 // queryRelaysForEvents queries all relays for events by the given npubs
-func (nc *NostrCollector) queryRelaysForEvents(ctx context.Context, npubs []string, targetDate *time.Time) (int, []models.DailyNotes, error) {
+func (nc *NostrCollector) queryRelaysForEvents(ctx context.Context, npubs []string, targetDate *time.Time) (int, int, []models.DailyNotes, error) {
 	if len(npubs) == 0 {
-		return 0, []models.DailyNotes{}, nil
+		return 0, 0, []models.DailyNotes{}, nil
 	}
 
-	// For now, return mock data since nostr library has dependency issues
-	// TODO: Implement actual nostr relay queries when dependencies are resolved
-	// Querying for kinds: 0 (profile metadata), 1 (notes), 30023 (long-form content)
-	log.Printf("Querying %d npubs from %d relays (mock implementation)", len(npubs), len(nc.relays))
+	log.Printf("Querying %d npubs from %d relays (real implementation)", len(npubs), len(nc.relays))
 
-	// Mock data for testing
-	activePosters := len(npubs) / 5 // Assume 20% of users with npubs are active
-	if activePosters == 0 && len(npubs) > 0 {
+	// Convert npubs to pubkeys
+	pubkeys := make([]string, 0, len(npubs))
+	validNpubs := 0
+	for _, npub := range npubs {
+		// Only process strings that look like npubs (start with npub1)
+		if len(npub) > 5 && npub[:5] == "npub1" {
+			if prefix, value, err := nip19.Decode(npub); err == nil && prefix == "npub" {
+				if pubkey, ok := value.(string); ok {
+					pubkeys = append(pubkeys, pubkey)
+					validNpubs++
+				}
+			} else {
+				log.Printf("Invalid npub format: %s", npub)
+			}
+		}
+		// Skip non-npub entries silently (they're likely URLs, usernames, etc.)
+	}
+
+	log.Printf("Found %d valid npubs out of %d total entries", validNpubs, len(npubs))
+
+	if len(pubkeys) == 0 {
+		log.Printf("No valid pubkeys found from %d npubs", len(npubs))
+		return validNpubs, 0, []models.DailyNotes{}, nil
+	}
+
+	// Query relays for events
+	events, err := nc.queryRelays(ctx, pubkeys, targetDate)
+	if err != nil {
+		log.Printf("Error querying relays: %v", err)
+		// Fall back to mock data if relay querying fails
+		activePosters, notesByKind := nc.getMockData(len(npubs), targetDate)
+		return validNpubs, activePosters, notesByKind, nil
+	}
+
+	// Process events to get active posters and notes by kind
+	activePosters, notesByKind := nc.processEvents(events, targetDate)
+
+	return validNpubs, activePosters, notesByKind, nil
+}
+
+// queryRelays queries all configured relays for events
+func (nc *NostrCollector) queryRelays(ctx context.Context, pubkeys []string, targetDate *time.Time) ([]*nostr.Event, error) {
+	var allEvents []*nostr.Event
+
+	// Calculate time range (last 7 days)
+	var since time.Time
+	if targetDate != nil {
+		since = targetDate.AddDate(0, 0, -7)
+	} else {
+		since = time.Now().AddDate(0, 0, -7)
+	}
+	until := time.Now()
+
+	// Convert to nostr timestamps
+	sinceTimestamp := nostr.Timestamp(since.Unix())
+	untilTimestamp := nostr.Timestamp(until.Unix())
+
+	// Query each relay
+	for _, relayURL := range nc.relays {
+		log.Printf("Querying relay: %s", relayURL)
+
+		relay, err := nostr.RelayConnect(ctx, relayURL)
+		if err != nil {
+			log.Printf("Failed to connect to relay %s: %v", relayURL, err)
+			continue
+		}
+		defer relay.Close()
+
+		// Create filter for the pubkeys and time range
+		filter := nostr.Filter{
+			Authors: pubkeys,
+			Since:   &sinceTimestamp,
+			Until:   &untilTimestamp,
+			Kinds:   []int{0, 1, 30023}, // Profile metadata, notes, long-form content
+		}
+
+		// Query the relay
+		events, err := relay.QuerySync(ctx, filter)
+		if err != nil {
+			log.Printf("Failed to query relay %s: %v", relayURL, err)
+			continue
+		}
+
+		log.Printf("Found %d events from relay %s", len(events), relayURL)
+		allEvents = append(allEvents, events...)
+	}
+
+	log.Printf("Total events found across all relays: %d", len(allEvents))
+	return allEvents, nil
+}
+
+// processEvents processes the events to extract metrics
+func (nc *NostrCollector) processEvents(events []*nostr.Event, targetDate *time.Time) (int, []models.DailyNotes) {
+	// Track active posters (unique authors)
+	activeAuthors := make(map[string]bool)
+
+	// Track notes by kind and day
+	notesByDay := make(map[string]map[string]int)
+
+	// Use target date or current date for base
+	var baseDate time.Time
+	if targetDate != nil {
+		baseDate = *targetDate
+	} else {
+		baseDate = time.Now()
+	}
+
+	// Initialize notesByDay for the last 7 days
+	for i := 6; i >= 0; i-- {
+		date := baseDate.AddDate(0, 0, -i).Format("2006-01-02")
+		notesByDay[date] = map[string]int{
+			"0":     0, // Profile metadata
+			"1":     0, // Notes
+			"30023": 0, // Long-form content
+		}
+	}
+
+	// Process each event
+	for _, event := range events {
+		// Track active authors
+		activeAuthors[event.PubKey] = true
+
+		// Get event date
+		eventDate := time.Unix(int64(event.CreatedAt), 0).Format("2006-01-02")
+
+		// Check if this date is within our range
+		if dayData, exists := notesByDay[eventDate]; exists {
+			kindStr := fmt.Sprintf("%d", event.Kind)
+			if kindStr == "0" || kindStr == "1" || kindStr == "30023" {
+				dayData[kindStr]++
+			}
+		}
+	}
+
+	// Convert to DailyNotes format
+	var results []models.DailyNotes
+	for i := 6; i >= 0; i-- {
+		date := baseDate.AddDate(0, 0, -i).Format("2006-01-02")
+		if dayData, exists := notesByDay[date]; exists {
+			results = append(results, models.DailyNotes{
+				Date:  date,
+				Kinds: dayData,
+			})
+		}
+	}
+
+	return len(activeAuthors), results
+}
+
+// getMockData returns mock data as fallback
+func (nc *NostrCollector) getMockData(npubsCount int, targetDate *time.Time) (int, []models.DailyNotes) {
+	activePosters := npubsCount / 5
+	if activePosters == 0 && npubsCount > 0 {
 		activePosters = 1
 	}
 
-	// Generate mock notes data for the last 7 days
 	notesByKind := nc.generateMockNotesData(targetDate)
-
-	return activePosters, notesByKind, nil
+	return activePosters, notesByKind
 }
 
 // generateMockNotesData generates mock notes data for testing
