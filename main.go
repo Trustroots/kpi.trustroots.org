@@ -45,12 +45,15 @@ func main() {
 	// Initialize Nostr collector
 	nostrCollector := collectors.NewNostrCollector(cfg.NostrRelays, mongoCollector.GetDatabase())
 
+	// Initialize Nostr poster
+	nostrPoster := collectors.NewNostrPoster(cfg.NostrRelays, cfg.NsecStats)
+
 	// Initialize aggregator
 	aggregator := collectors.NewAggregator(mongoCollector, nostrCollector)
 
 	// Run collection
 	log.Println("Running KPI collection...")
-	if err := runCollection(aggregator, cfg.OutputPath, targetDate); err != nil {
+	if err := runCollection(aggregator, nostrPoster, cfg.OutputPath, targetDate); err != nil {
 		log.Fatalf("Collection failed: %v", err)
 	}
 	log.Println("Collection completed successfully")
@@ -76,7 +79,7 @@ func main() {
 		select {
 		case <-ticker.C:
 			log.Println("Running scheduled KPI collection...")
-			if err := runCollection(aggregator, cfg.OutputPath, nil); err != nil {
+			if err := runCollection(aggregator, nostrPoster, cfg.OutputPath, nil); err != nil {
 				log.Printf("Scheduled collection failed: %v", err)
 			} else {
 				log.Println("Scheduled collection completed successfully")
@@ -90,7 +93,7 @@ func main() {
 }
 
 // runCollection performs a single KPI data collection cycle
-func runCollection(aggregator *collectors.Aggregator, outputPath string, targetDate *time.Time) error {
+func runCollection(aggregator *collectors.Aggregator, nostrPoster *collectors.NostrPoster, outputPath string, targetDate *time.Time) error {
 	start := time.Now()
 
 	// Collect all data
@@ -102,6 +105,12 @@ func runCollection(aggregator *collectors.Aggregator, outputPath string, targetD
 	// Save to file
 	if err := aggregator.SaveToFile(data, outputPath); err != nil {
 		return err
+	}
+
+	// Post stats to Nostr
+	if err := nostrPoster.PostStats(data); err != nil {
+		log.Printf("Failed to post stats to Nostr: %v", err)
+		// Don't fail the entire collection if Nostr posting fails
 	}
 
 	duration := time.Since(start)
@@ -117,6 +126,7 @@ type Config struct {
 	NostrRelays    []string
 	OutputPath     string
 	UpdateInterval time.Duration
+	NsecStats      string
 }
 
 // loadConfig loads configuration from .env file or environment variables
@@ -132,6 +142,7 @@ func loadConfig() *Config {
 			NostrRelays:    strings.Split(getEnv("NOSTR_RELAYS", "wss://relay.trustroots.org,wss://relay.nomadwiki.org"), ","),
 			OutputPath:     getEnv("OUTPUT_PATH", "public/kpi.json"),
 			UpdateInterval: time.Duration(getEnvInt("UPDATE_INTERVAL_MINUTES", 60)) * time.Minute,
+			NsecStats:      getEnv("NSEC_STATS", ""),
 		}
 	}
 
@@ -205,6 +216,8 @@ func loadConfigFromFile(filename string) *Config {
 			if intValue, err := strconv.Atoi(value); err == nil {
 				config.UpdateInterval = time.Duration(intValue) * time.Minute
 			}
+		case "NSEC_STATS":
+			config.NsecStats = value
 		}
 	}
 
