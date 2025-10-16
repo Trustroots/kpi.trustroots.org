@@ -215,6 +215,33 @@
         canvas {
             max-height: 300px;
         }
+
+        /* Footer */
+        footer {
+            margin-top: 40px;
+            padding: 20px 0;
+            border-top: 1px solid #e9ecef;
+            text-align: center;
+            color: #6c757d;
+            font-size: 0.9rem;
+        }
+
+        footer a {
+            color: #3498db;
+            text-decoration: none;
+            margin: 0 15px;
+            transition: color 0.3s ease;
+        }
+
+        footer a:hover {
+            color: #2980b9;
+            text-decoration: underline;
+        }
+
+        footer .separator {
+            color: #dee2e6;
+            margin: 0 10px;
+        }
     </style>
 </head>
 <body>
@@ -296,6 +323,12 @@
             <button onclick="loadMetrics()">Retry</button>
         </div>
     </div>
+
+    <footer>
+        <a href="https://grafana.trustroots.org" target="_blank" rel="noopener noreferrer">Check our Grafana for stats galore</a>
+        <span class="separator">•</span>
+        <a href="https://github.com/trustroots/kpi.trustroots.org" target="_blank" rel="noopener noreferrer">GitHub Project</a>
+    </footer>
 
     <script>
         // KPI Dashboard JavaScript

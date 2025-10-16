@@ -81,7 +81,7 @@ func (np *NostrPoster) PostStats(data *models.KPIData) error {
 		}
 
 		// Publish the event
-		_, err = relay.Publish(ctx, *event)
+		err = relay.Publish(ctx, *event)
 		relay.Close()
 
 		if err != nil {
