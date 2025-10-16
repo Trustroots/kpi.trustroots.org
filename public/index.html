@@ -230,11 +230,11 @@
                 <h2>Trustroots</h2>
                 <div class="metrics-grid">
                     <div class="metric-card">
-                        <h3>Messages Today</h3>
+                        <h3>Messages Yesterday</h3>
                         <div class="metric-value" id="messagesToday">-</div>
                     </div>
                     <div class="metric-card">
-                        <h3>Reviews Today</h3>
+                        <h3>Reviews Yesterday</h3>
                         <div class="metric-value" id="reviewsToday">-</div>
                         <div class="metric-detail">
                             <span class="positive">+<span id="positiveReviews">0</span></span>
@@ -242,7 +242,7 @@
                         </div>
                     </div>
                     <div class="metric-card">
-                        <h3>Thread Votes Today</h3>
+                        <h3>Thread Votes Yesterday</h3>
                         <div class="metric-value" id="threadVotesToday">-</div>
                         <div class="metric-detail">
                             <span class="upvote">↑<span id="upvotes">0</span></span>
@@ -360,25 +360,25 @@
             }
 
             renderTrustrootsMetrics() {
-                const today = this.getTodayData(this.data.trustroots);
+                const yesterday = this.getYesterdayData(this.data.trustroots);
                 
-                // Messages today
-                document.getElementById('messagesToday').textContent = today.messages || 0;
+                // Messages yesterday
+                document.getElementById('messagesToday').textContent = yesterday.messages || 0;
                 
-                // Reviews today
-                const reviews = today.reviews || { positive: 0, negative: 0 };
+                // Reviews yesterday
+                const reviews = yesterday.reviews || { positive: 0, negative: 0 };
                 document.getElementById('reviewsToday').textContent = reviews.positive + reviews.negative;
                 document.getElementById('positiveReviews').textContent = reviews.positive;
                 document.getElementById('negativeReviews').textContent = reviews.negative;
                 
-                // Thread votes today
-                const votes = today.threadVotes || { upvotes: 0, downvotes: 0 };
+                // Thread votes yesterday
+                const votes = yesterday.threadVotes || { upvotes: 0, downvotes: 0 };
                 document.getElementById('threadVotesToday').textContent = votes.upvotes + votes.downvotes;
                 document.getElementById('upvotes').textContent = votes.upvotes;
                 document.getElementById('downvotes').textContent = votes.downvotes;
                 
                 // Average reply time
-                const replyTime = today.timeToFirstReply || 0;
+                const replyTime = yesterday.timeToFirstReply || 0;
                 document.getElementById('avgReplyTime').textContent = this.formatTime(replyTime);
             }
 
@@ -424,21 +424,21 @@
                         labels: labels,
                         datasets: [
                             {
-                                label: 'Messages',
+                                label: 'Messages (Yesterday)',
                                 data: this.getChartData(data.messagesPerDay, labels),
                                 borderColor: '#3498db',
                                 backgroundColor: 'rgba(52, 152, 219, 0.1)',
                                 tension: 0.4
                             },
                             {
-                                label: 'Positive Reviews',
+                                label: 'Positive Reviews (Yesterday)',
                                 data: this.getChartData(data.reviewsPerDay, labels, 'positive'),
                                 borderColor: '#27ae60',
                                 backgroundColor: 'rgba(39, 174, 96, 0.1)',
                                 tension: 0.4
                             },
                             {
-                                label: 'Thread Upvotes',
+                                label: 'Thread Upvotes (Yesterday)',
                                 data: this.getChartData(data.threadVotesPerDay, labels, 'upvotes'),
                                 borderColor: '#f39c12',
                                 backgroundColor: 'rgba(243, 156, 18, 0.1)',
@@ -485,7 +485,10 @@
                 const kindConfig = {
                     'kind0': { label: 'Profile Metadata (Kind 0)', color: 'rgb(255, 99, 132)' },
                     'kind1': { label: 'Notes (Kind 1)', color: 'rgb(54, 162, 235)' },
-                    'kind30023': { label: 'Long-form Content (Kind 30023)', color: 'rgb(255, 205, 86)' }
+                    'kind30023': { label: 'Long-form Content (Kind 30023)', color: 'rgb(255, 205, 86)' },
+                    'kind397': { label: 'App-specific Data (Kind 397)', color: 'rgb(153, 102, 255)' },
+                    'kind30398': { label: 'Community Post (Kind 30398)', color: 'rgb(255, 159, 64)' },
+                    'kind30399': { label: 'Community Post Reply (Kind 30399)', color: 'rgb(75, 192, 192)' }
                 };
                 
                 const datasets = Array.from(allKinds).map((kind, index) => ({
@@ -527,6 +530,26 @@
                        section.timeToFirstReplyPerDay?.find(item => item.date === today) ||
                        section.notesByKindPerDay?.find(item => item.date === today) ||
                        {};
+            }
+
+            getYesterdayData(section) {
+                const yesterday = new Date();
+                yesterday.setDate(yesterday.getDate() - 1);
+                const yesterdayStr = yesterday.toISOString().split('T')[0];
+                
+                // Find data from yesterday across all data arrays
+                const messagesData = section.messagesPerDay?.find(item => item.date === yesterdayStr);
+                const reviewsData = section.reviewsPerDay?.find(item => item.date === yesterdayStr);
+                const votesData = section.threadVotesPerDay?.find(item => item.date === yesterdayStr);
+                const replyTimeData = section.timeToFirstReplyPerDay?.find(item => item.date === yesterdayStr);
+                
+                // Combine all yesterday's data into a single object
+                return {
+                    messages: messagesData?.count || 0,
+                    reviews: reviewsData ? { positive: reviewsData.positive, negative: reviewsData.negative } : { positive: 0, negative: 0 },
+                    threadVotes: votesData ? { upvotes: votesData.upvotes, downvotes: votesData.downvotes } : { upvotes: 0, downvotes: 0 },
+                    timeToFirstReply: replyTimeData?.avgMs || 0
+                };
             }
 
             getLast7Days() {
