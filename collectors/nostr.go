@@ -126,9 +126,8 @@ func (nc *NostrCollector) queryRelaysForEvents(ctx context.Context, npubs []stri
 	events, err := nc.queryRelays(ctx, pubkeys, targetDate)
 	if err != nil {
 		log.Printf("Error querying relays: %v", err)
-		// Fall back to mock data if relay querying fails
-		activePosters, notesByKind := nc.getMockData(len(npubs), targetDate)
-		return validNpubs, activePosters, notesByKind, nil
+		// Return empty data if relay querying fails
+		return validNpubs, 0, []models.DailyNotes{}, err
 	}
 
 	// Process events to get active posters and notes by kind
@@ -170,7 +169,7 @@ func (nc *NostrCollector) queryRelays(ctx context.Context, pubkeys []string, tar
 			Authors: pubkeys,
 			Since:   &sinceTimestamp,
 			Until:   &untilTimestamp,
-			Kinds:   []int{0, 1, 30023}, // Profile metadata, notes, long-form content
+			Kinds:   []int{0, 1, 4, 30023, 397, 30398, 30399}, // Profile metadata, notes, encrypted DMs, long-form content, app-specific data, community posts, community post replies
 		}
 
 		// Query the relay
@@ -210,7 +209,11 @@ func (nc *NostrCollector) processEvents(events []*nostr.Event, targetDate *time.
 		notesByDay[date] = map[string]int{
 			"0":     0, // Profile metadata
 			"1":     0, // Notes
+			"4":     0, // Encrypted DMs
 			"30023": 0, // Long-form content
+			"397":   0, // App-specific data
+			"30398": 0, // Community post
+			"30399": 0, // Community post reply
 		}
 	}
 
@@ -225,7 +228,7 @@ func (nc *NostrCollector) processEvents(events []*nostr.Event, targetDate *time.
 		// Check if this date is within our range
 		if dayData, exists := notesByDay[eventDate]; exists {
 			kindStr := fmt.Sprintf("%d", event.Kind)
-			if kindStr == "0" || kindStr == "1" || kindStr == "30023" {
+			if kindStr == "0" || kindStr == "1" || kindStr == "4" || kindStr == "30023" || kindStr == "397" || kindStr == "30398" || kindStr == "30399" {
 				dayData[kindStr]++
 			}
 		}
@@ -246,53 +249,6 @@ func (nc *NostrCollector) processEvents(events []*nostr.Event, targetDate *time.
 	return len(activeAuthors), results
 }
 
-// getMockData returns mock data as fallback
-func (nc *NostrCollector) getMockData(npubsCount int, targetDate *time.Time) (int, []models.DailyNotes) {
-	activePosters := npubsCount / 5
-	if activePosters == 0 && npubsCount > 0 {
-		activePosters = 1
-	}
-
-	notesByKind := nc.generateMockNotesData(targetDate)
-	return activePosters, notesByKind
-}
-
-// generateMockNotesData generates mock notes data for testing
-func (nc *NostrCollector) generateMockNotesData(targetDate *time.Time) []models.DailyNotes {
-	var results []models.DailyNotes
-
-	// Use target date or current date
-	var baseDate time.Time
-	if targetDate != nil {
-		baseDate = *targetDate
-	} else {
-		baseDate = time.Now()
-	}
-
-	// Generate data for the last 7 days
-	for i := 6; i >= 0; i-- {
-		date := baseDate.AddDate(0, 0, -i).Format("2006-01-02")
-
-		// Mock some activity
-		kinds := make(map[string]int)
-		if i%2 == 0 { // Some days have more activity
-			kinds["0"] = 2 + i     // Profile metadata
-			kinds["1"] = 15 + i*2  // Notes
-			kinds["30023"] = 3 + i // Long-form content
-		} else {
-			kinds["0"] = 1
-			kinds["1"] = 8 + i
-			kinds["30023"] = 1
-		}
-
-		results = append(results, models.DailyNotes{
-			Date:  date,
-			Kinds: kinds,
-		})
-	}
-
-	return results
-}
 
 // aggregateNotesByKind aggregates events by kind and day (placeholder for future implementation)
 func (nc *NostrCollector) aggregateNotesByKind(events map[string]interface{}) []models.DailyNotes {
