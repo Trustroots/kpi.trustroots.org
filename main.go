@@ -51,10 +51,18 @@ func main() {
 	// Initialize aggregator
 	aggregator := collectors.NewAggregator(mongoCollector, nostrCollector)
 
+	lastPostDate := ""
+
 	// Run collection
 	log.Println("Running KPI collection...")
-	if err := runCollection(aggregator, nostrPoster, cfg.OutputPath, targetDate); err != nil {
+	now := time.Now()
+	postStats := cfg.NsecStats != "" && shouldPostStats(now, lastPostDate)
+	posted, err := runCollection(aggregator, nostrPoster, cfg.OutputPath, targetDate, postStats)
+	if err != nil {
 		log.Fatalf("Collection failed: %v", err)
+	}
+	if posted {
+		lastPostDate = now.In(time.Local).Format("2006-01-02")
 	}
 	log.Println("Collection completed successfully")
 
@@ -79,9 +87,15 @@ func main() {
 		select {
 		case <-ticker.C:
 			log.Println("Running scheduled KPI collection...")
-			if err := runCollection(aggregator, nostrPoster, cfg.OutputPath, nil); err != nil {
+			now := time.Now()
+			postStats := cfg.NsecStats != "" && shouldPostStats(now, lastPostDate)
+			posted, err := runCollection(aggregator, nostrPoster, cfg.OutputPath, nil, postStats)
+			if err != nil {
 				log.Printf("Scheduled collection failed: %v", err)
 			} else {
+				if posted {
+					lastPostDate = now.In(time.Local).Format("2006-01-02")
+				}
 				log.Println("Scheduled collection completed successfully")
 			}
 
@@ -93,30 +107,45 @@ func main() {
 }
 
 // runCollection performs a single KPI data collection cycle
-func runCollection(aggregator *collectors.Aggregator, nostrPoster *collectors.NostrPoster, outputPath string, targetDate *time.Time) error {
+func runCollection(aggregator *collectors.Aggregator, nostrPoster *collectors.NostrPoster, outputPath string, targetDate *time.Time, postStats bool) (bool, error) {
 	start := time.Now()
 
 	// Collect all data
 	data, err := aggregator.CollectAllData(targetDate)
 	if err != nil {
-		return err
+		return false, err
 	}
 
 	// Save to file
 	if err := aggregator.SaveToFile(data, outputPath); err != nil {
-		return err
+		return false, err
 	}
 
 	// Post stats to Nostr
-	if err := nostrPoster.PostStats(data); err != nil {
-		log.Printf("Failed to post stats to Nostr: %v", err)
-		// Don't fail the entire collection if Nostr posting fails
+	posted := false
+	if postStats {
+		if err := nostrPoster.PostStats(data); err != nil {
+			log.Printf("Failed to post stats to Nostr: %v", err)
+			// Don't fail the entire collection if Nostr posting fails
+		} else {
+			posted = true
+		}
 	}
 
 	duration := time.Since(start)
 	log.Printf("Collection completed in %v", duration)
 
-	return nil
+	return posted, nil
+}
+
+func shouldPostStats(now time.Time, lastPostDate string) bool {
+	local := now.In(time.Local)
+	if local.Hour() != 12 {
+		return false
+	}
+
+	today := local.Format("2006-01-02")
+	return lastPostDate != today
 }
 
 // Config holds all configuration for the KPI service
